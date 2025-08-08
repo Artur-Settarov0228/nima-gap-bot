@@ -1,63 +1,57 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import CallbackContext, ConversationHandler
-from config import states
-from keyboards.location import get_location_keyboard
-from keyboards.contact import get_contact_keyboard
-from keyboards.gender import get_gender_keyboard
+from services.database import update_user
 
+NAME, GENDER, LOCATION = range(3)
 
-def start_register(update: Update, context: CallbackContext):
-    update.message.reply_text("Ro'yxatdan o'tish uchun quyidagi malumotlaringizni yuboring.")
-    update.message.reply_text("name yuboring")
-    return states.NAME
-
-
-def set_name(update: Update, context: CallbackContext):
-    name = update.message.text
-    context.user_data['name'] = name
-
-    update.message.reply_text("name qabul qilindi")
-    update.message.reply_text(
-        "gender yuboring",
-        reply_markup=get_gender_keyboard()
+def request_contact(update: Update, context: CallbackContext):
+    contact_btn = ReplyKeyboardMarkup(
+        [[KeyboardButton("Raqamni yuborish", request_contact=True)]],
+        resize_keyboard=True, one_time_keyboard=True
     )
-    return states.GENDER
+    update.message.reply_text("Raqamingizni yuboring:", reply_markup=contact_btn)
+    return NAME
 
-
-def set_gender(update: Update, context: CallbackContext):
-    gender = update.message.text
-    context.user_data['gender'] = gender
-
-    update.message.reply_text("gender qabul qilindi")
-    update.message.reply_text(
-        "location yuboring",
-        reply_markup=get_location_keyboard()
-    )
-    return states.LOCATION
-
-
-def set_location(update: Update, context: CallbackContext):
-    location = update.message.location
-    context.user_data['location'] = {'latitude': location.latitude, 'longitude': location.longitude}
-
-    update.message.reply_text("location qabul qilindi")
-    update.message.reply_text(
-        "Contact yuboring",
-        reply_markup=get_contact_keyboard()
-    )
-    return states.NUMBER
-
-
-def set_number(update: Update, context: CallbackContext):
+def get_name(update: Update, context: CallbackContext):
     contact = update.message.contact
+    chat_id = update.effective_chat.id
+    update_user(chat_id, "number", contact.phone_number)
+    update.message.reply_text("Ismingizni kiriting:")
+    return GENDER
 
-    context.user_data['number'] = contact.phone_number
+def get_gender(update: Update, context: CallbackContext):
+    name = update.message.text
+    chat_id = update.effective_chat.id
+    update_user(chat_id, "name", name)
 
-    print(context.user_data)
+    gender_btn = ReplyKeyboardMarkup(
+        [["Erkak", "Ayol"]],
+        resize_keyboard=True, one_time_keyboard=True
+    )
+    update.message.reply_text("Jinsingizni tanlang:", reply_markup=gender_btn)
+    return LOCATION
 
-    update.message.reply_text("contact qabul qilindi")
+def get_location(update: Update, context: CallbackContext):
+    gender = update.message.text
+    chat_id = update.effective_chat.id
+    update_user(chat_id, "gender", gender)
 
-    # save a new user into database
+    update.message.reply_text("Iltimos, lokatsiyangizni yuboring ",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton(" Lokatsiyani yuborish", request_location=True)]],
+            resize_keyboard=True, one_time_keyboard=True
+        )
+    )
+    return ConversationHandler.END
 
-    update.message.reply_text("Register qilindingiz.")
+def save_location(update: Update, context: CallbackContext):
+    location = update.message.location
+    chat_id = update.effective_chat.id
+    loc_data = {
+        "longatute": location.longitude,
+        "latetute": location.latitude
+    }
+    update_user(chat_id, "location", loc_data)
+
+    update.message.reply_text("Ro'yxatdan o'tganingiz uchun rahmat ")
     return ConversationHandler.END
